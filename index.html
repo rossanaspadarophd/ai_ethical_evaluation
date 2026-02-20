@@ -1,0 +1,635 @@
+import React, { useState, useMemo, useRef } from 'react';
+import { ChevronDown, ChevronUp, Users, Shield, Lightbulb, Leaf, Lock, Cog, Scale, Download, RotateCcw, AlertCircle, BarChart3 } from 'lucide-react';
+import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer } from 'recharts';
+
+const EthicalEvaluationTool = () => {
+  const [responses, setResponses] = useState({});
+  const [expandedSections, setExpandedSections] = useState({
+    A: true,
+    B: false,
+    C: false,
+    D: false,
+    E: false,
+    F: false,
+    G: false
+  });
+  const [showRadarChart, setShowRadarChart] = useState(false);
+  const chartRef = useRef(null);
+
+  // Scale according to user specification:
+  // To a great extent: 5
+  // To some extent: 4  
+  // To a limited extent: 3
+  // Not much: 2
+  // Not at all: 1
+  // Not applicable: 0
+  const scaleOptions = [
+    { value: 0, label: "Not applicable", color: "bg-gray-100 text-gray-600", short: "0" },
+    { value: 1, label: "Not at all", color: "bg-red-100 text-red-800", short: "1" },
+    { value: 2, label: "Not much", color: "bg-red-200 text-red-800", short: "2" },
+    { value: 3, label: "To a limited extent", color: "bg-orange-100 text-orange-800", short: "3" },
+    { value: 4, label: "To some extent", color: "bg-yellow-100 text-yellow-800", short: "4" },
+    { value: 5, label: "To a great extent", color: "bg-green-100 text-green-800", short: "5" }
+  ];
+
+  const sections = {
+    A: {
+      title: "Human-centered AI",
+      icon: Users,
+      description: "Ensures the central and irreplaceable role of humans in the governance of AI systems, maintaining human oversight and control.",
+      questions: [
+        {
+          id: "A1",
+          text: "is the central and irreplaceable role of humans in the governance of AI systems ensured?"
+        },
+        {
+          id: "A2", 
+          text: "can the teachers make decisions, monitor and intervene?"
+        },
+        {
+          id: "A3",
+          text: "do teachers have all the training and information needed to effectively and safely use the system?"
+        }
+      ]
+    },
+    B: {
+      title: "Diversity, non-discrimination and fairness",
+      icon: Scale,
+      description: "Promotes equal access to opportunities, transparent and inclusive processes, and addresses potential bias and discrimination.",
+      questions: [
+        {
+          id: "B1",
+          text: "does the tool grant equal access to the opportunities and benefits derived from technology?"
+        },
+        {
+          id: "B2",
+          text: "does the tool operate through transparent, impartial and maximally inclusive processes, adapting to learners' individual needs?"
+        },
+        {
+          id: "B3",
+          text: "is it possible to deal with potential bias, discrimination or inequalities?"
+        }
+      ]
+    },
+    C: {
+      title: "Ethical, responsible and transparent innovation",
+      icon: Lightbulb,
+      description: "Ensures clear information availability, fosters critical learning without replacing human autonomy, and maintains reliable AI assessments.",
+      questions: [
+        {
+          id: "C1",
+          text: "are the instructions and information to use the tool clearly available to stakeholders?"
+        },
+        {
+          id: "C2",
+          text: "does the tool foster critical and creative learning without replacing the commitment, reflection and autonomy of individuals?"
+        },
+        {
+          id: "C3",
+          text: "are the assessments and classifications carried out by the AI system reliable?"
+        }
+      ]
+    },
+    D: {
+      title: "Societal, economic and environmental wellbeing",
+      icon: Leaf,
+      description: "Considers environmental impact, economic sustainability, and the emotional well-being of learners and teachers.",
+      questions: [
+        {
+          id: "D1",
+          text: "does the tool comply with environmental principles in terms of its ecological impact?"
+        },
+        {
+          id: "D2",
+          text: "can the tool be considered 'economically sustainable'?"
+        },
+        {
+          id: "D3",
+          text: "might the emotional well-being of learners and teachers be negatively affected by using the tool?"
+        }
+      ]
+    },
+    E: {
+      title: "Protection of fundamental rights, freedoms and privacy, and data governance",
+      icon: Lock,
+      description: "Ensures personal data protection, confidentiality, non-discrimination, and implements privacy by design principles.",
+      questions: [
+        {
+          id: "E1",
+          text: "does the use of the tool ensure the right to personal data protection, confidentiality, non-discrimination and personal dignity?"
+        },
+        {
+          id: "E2",
+          text: "are the stakeholders informed about the treatment of their data when using the tool?"
+        },
+        {
+          id: "E3",
+          text: "does the tool respect the principles of privacy by design and privacy by default?"
+        }
+      ]
+    },
+    F: {
+      title: "Technical robustness and safety of AI systems and models",
+      icon: Cog,
+      description: "Guarantees high technical security standards, accessible safety information, and data integrity within the educational environment.",
+      questions: [
+        {
+          id: "F1",
+          text: "can the tool guarantee high standards of technical security?"
+        },
+        {
+          id: "F2",
+          text: "is the information about the system's technical robustness and safety accessible to learners and parents?"
+        },
+        {
+          id: "F3",
+          text: "can confidentiality, integrity and availability of data within the school environment be ensured when using the tool?"
+        }
+      ]
+    },
+    G: {
+      title: "Accountability",
+      icon: Shield,
+      description: "Ensures clear responsibility and accountability mechanisms for AI systems in educational contexts.",
+      questions: [
+        {
+          id: "G1",
+          text: "are there clear accountability mechanisms in place for the AI system's decisions and outcomes?"
+        },
+        {
+          id: "G2",
+          text: "is there transparency about who is responsible for the system's performance and potential errors?"
+        },
+        {
+          id: "G3",
+          text: "are there effective procedures for addressing complaints and appeals regarding the AI system?"
+        }
+      ]
+    }
+  };
+
+  const handleResponseChange = (questionId, value) => {
+    setResponses(prev => ({
+      ...prev,
+      [questionId]: parseInt(value)
+    }));
+  };
+
+  const toggleSection = (sectionKey) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [sectionKey]: !prev[sectionKey]
+    }));
+  };
+
+  const calculateSectionScore = (sectionQuestions) => {
+    const sectionResponses = sectionQuestions.map(q => responses[q.id]).filter(r => r !== undefined && r !== 0);
+    if (sectionResponses.length === 0) return null;
+    
+    const average = sectionResponses.reduce((sum, score) => sum + score, 0) / sectionResponses.length;
+    return average;
+  };
+
+  const getSectionStatus = (score) => {
+    if (score === null) return { text: "Not evaluated", color: "text-gray-500" };
+    if (score >= 4.5) return { text: "Achieved", color: "text-green-600" };
+    if (score >= 3.5) return { text: "Mostly achieved", color: "text-green-500" };
+    if (score >= 2.5) return { text: "Partially achieved", color: "text-yellow-600" };
+    if (score >= 1.5) return { text: "Minimally achieved", color: "text-orange-600" };
+    return { text: "Not achieved", color: "text-red-600" };
+  };
+
+  const overallScore = useMemo(() => {
+    const allResponses = Object.values(responses).filter(r => r !== undefined && r !== 0);
+    if (allResponses.length === 0) return null;
+    return allResponses.reduce((sum, score) => sum + score, 0) / allResponses.length;
+  }, [responses]);
+
+  const radarData = useMemo(() => {
+    return Object.entries(sections).map(([key, section]) => ({
+      subject: section.title,
+      fullName: section.title,
+      score: calculateSectionScore(section.questions) || 0,
+      maxScore: 5
+    }));
+  }, [responses]);
+
+  const resetAll = () => {
+    setResponses({});
+  };
+
+  const exportResults = () => {
+    const results = {
+      timestamp: new Date().toISOString(),
+      overallScore: overallScore,
+      overallStatus: overallScore ? getSectionStatus(overallScore).text : "Not evaluated",
+      sections: {}
+    };
+
+    Object.entries(sections).forEach(([key, section]) => {
+      const sectionScore = calculateSectionScore(section.questions);
+      results.sections[key] = {
+        title: section.title,
+        score: sectionScore,
+        status: getSectionStatus(sectionScore).text,
+        responses: {}
+      };
+      
+      section.questions.forEach(q => {
+        results.sections[key].responses[q.id] = {
+          question: q.text,
+          response: responses[q.id] || "Not answered",
+          responseLabel: responses[q.id] ? scaleOptions.find(opt => opt.value === responses[q.id])?.label : "Not answered"
+        };
+      });
+    });
+
+    const dataStr = JSON.stringify(results, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `ethical_evaluation_${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportChart = () => {
+    if (!chartRef.current) return;
+    
+    // Create a canvas element
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Set canvas dimensions
+    canvas.width = 800;
+    canvas.height = 600;
+    
+    // Fill background
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Add title
+    ctx.fillStyle = '#1f2937';
+    ctx.font = 'bold 24px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('Ethical Compliance Evaluation - Radar Chart', canvas.width / 2, 40);
+    
+    // Draw radar chart manually
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2 + 20;
+    const radius = 200;
+    const numSides = 7;
+    
+    // Draw grid circles
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.lineWidth = 1;
+    for (let i = 1; i <= 5; i++) {
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, (radius * i) / 5, 0, 2 * Math.PI);
+      ctx.stroke();
+    }
+    
+    // Draw axes and labels
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.fillStyle = '#374151';
+    ctx.font = '14px Arial';
+    ctx.textAlign = 'center';
+    
+    radarData.forEach((item, index) => {
+      const angle = (index * 2 * Math.PI) / numSides - Math.PI / 2;
+      const x = centerX + radius * Math.cos(angle);
+      const y = centerY + radius * Math.sin(angle);
+      
+      // Draw axis line
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      
+      // Draw label
+      const labelX = centerX + (radius + 30) * Math.cos(angle);
+      const labelY = centerY + (radius + 30) * Math.sin(angle);
+      const shortTitle = item.fullName.length > 20 ? item.fullName.substring(0, 17) + '...' : item.fullName;
+      ctx.fillText(shortTitle, labelX, labelY);
+    });
+    
+    // Draw data polygon
+    ctx.strokeStyle = '#3b82f6';
+    ctx.fillStyle = 'rgba(59, 130, 246, 0.2)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    
+    radarData.forEach((item, index) => {
+      const angle = (index * 2 * Math.PI) / numSides - Math.PI / 2;
+      const value = item.score / 5; // Normalize to 0-1
+      const x = centerX + radius * value * Math.cos(angle);
+      const y = centerY + radius * value * Math.sin(angle);
+      
+      if (index === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+    
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    
+    // Draw data points
+    ctx.fillStyle = '#3b82f6';
+    radarData.forEach((item, index) => {
+      const angle = (index * 2 * Math.PI) / numSides - Math.PI / 2;
+      const value = item.score / 5;
+      const x = centerX + radius * value * Math.cos(angle);
+      const y = centerY + radius * value * Math.sin(angle);
+      
+      ctx.beginPath();
+      ctx.arc(x, y, 6, 0, 2 * Math.PI);
+      ctx.fill();
+    });
+    
+    // Add scale labels
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '12px Arial';
+    for (let i = 1; i <= 5; i++) {
+      ctx.fillText(i.toString(), centerX + 10, centerY - (radius * i) / 5 + 5);
+    }
+    
+    // Convert to blob and download
+    canvas.toBlob((blob) => {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `ethical_evaluation_radar_${new Date().toISOString().split('T')[0]}.png`;
+      link.click();
+      URL.revokeObjectURL(url);
+    });
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      <div className="container mx-auto px-4 py-8 max-w-6xl">
+        {/* Header */}
+        <div className="bg-white rounded-3xl shadow-xl p-8 mb-8 border border-gray-100">
+          <div className="text-center mb-6">
+            <h1 className="text-4xl font-bold text-gray-800 mb-4">
+              Ethical Compliance Evaluation Model
+            </h1>
+            <h2 className="text-xl text-gray-600 mb-6">
+              for AI-powered Educational Tools
+            </h2>
+            <div className="max-w-3xl mx-auto text-gray-600 leading-relaxed">
+              <p className="mb-4">
+                This model helps you evaluating to what extent the AI-powered tool/software you are using complies 
+                with EU and Italian ethical guidelines on the use of AI in education.
+              </p>
+              <p className="text-sm text-gray-500">
+                The tool is not intended to be exhaustive or comprehensive.
+              </p>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-wrap justify-center gap-4">
+            <button
+              onClick={() => setShowRadarChart(!showRadarChart)}
+              className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl font-medium transition-colors"
+            >
+              <BarChart3 size={20} />
+              {showRadarChart ? 'Hide' : 'Show'} Radar Chart
+            </button>
+            {showRadarChart && (
+              <button
+                onClick={exportChart}
+                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-medium transition-colors"
+              >
+                <Download size={20} />
+                Export Chart
+              </button>
+            )}
+            <button
+              onClick={exportResults}
+              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-medium transition-colors"
+            >
+              <Download size={20} />
+              Export Results
+            </button>
+            <button
+              onClick={resetAll}
+              className="flex items-center gap-2 bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-xl font-medium transition-colors"
+            >
+              <RotateCcw size={20} />
+              Reset
+            </button>
+          </div>
+        </div>
+
+        {/* Radar Chart */}
+        {showRadarChart && (
+          <div className="bg-white rounded-2xl shadow-lg p-8 mb-8 border border-gray-100" ref={chartRef}>
+            <h3 className="text-2xl font-bold text-gray-800 mb-6 text-center">Ethical Compliance Radar Chart</h3>
+            <div className="h-96">
+              <ResponsiveContainer width="100%" height="100%">
+                <RadarChart data={radarData}>
+                  <PolarGrid />
+                  <PolarAngleAxis 
+                    dataKey="subject" 
+                    tick={{ fontSize: 12, fill: '#374151' }}
+                  />
+                  <PolarRadiusAxis 
+                    angle={90} 
+                    domain={[0, 5]} 
+                    tick={{ fontSize: 10, fill: '#6b7280' }}
+                  />
+                  <Radar
+                    name="Score"
+                    dataKey="score"
+                    stroke="#3b82f6"
+                    fill="#3b82f6"
+                    fillOpacity={0.2}
+                    strokeWidth={3}
+                  />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+              {radarData.map((item, index) => (
+                <div key={index} className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full flex-shrink-0"></div>
+                  <span className="text-gray-700">{item.fullName}</span>
+                  <span className="ml-auto font-bold text-gray-800">{item.score.toFixed(1)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Sections */}
+        <div className="space-y-6">
+          {Object.entries(sections).map(([sectionKey, section]) => {
+            const IconComponent = section.icon;
+            const sectionScore = calculateSectionScore(section.questions);
+            const sectionStatus = getSectionStatus(sectionScore);
+            const isExpanded = expandedSections[sectionKey];
+
+            return (
+              <div key={sectionKey} className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                {/* Section Header */}
+                <div 
+                  className="p-6 cursor-pointer hover:bg-gray-50 transition-colors"
+                  onClick={() => toggleSection(sectionKey)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center">
+                        <IconComponent className="text-indigo-600" size={24} />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-gray-800">
+                          {sectionKey}. {section.title}
+                        </h3>
+                        <p className="text-gray-600 text-sm mt-1">
+                          {section.description}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      {sectionScore !== null && (
+                        <div className="text-right">
+                          <div className="text-lg font-bold text-gray-700">
+                            {sectionScore.toFixed(1)}/5
+                          </div>
+                          <div className={`text-sm font-medium ${sectionStatus.color}`}>
+                            {sectionStatus.text}
+                          </div>
+                        </div>
+                      )}
+                      <div className="transition-transform duration-200" style={{
+                        transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)'
+                      }}>
+                        <ChevronDown size={24} className="text-gray-400" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section Content */}
+                {isExpanded && (
+                  <div className="px-6 pb-6">
+                    <div className="bg-gray-50 rounded-xl p-6">
+                      <p className="text-sm text-gray-600 mb-6 italic">
+                        "When using the tool, to what extent:"
+                      </p>
+                      
+                      <div className="space-y-6">
+                        {section.questions.map((question, index) => (
+                          <div key={question.id} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                            <div className="mb-4">
+                              <label className="block text-gray-800 font-medium mb-3">
+                                <span className="text-indigo-600 font-bold mr-2">{index + 1}.</span>
+                                {question.text}
+                              </label>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                              {scaleOptions.map((option) => (
+                                <label
+                                  key={option.value}
+                                  className={`
+                                    cursor-pointer rounded-xl p-3 text-center font-medium text-sm transition-all duration-200 border-2
+                                    ${responses[question.id] === option.value
+                                      ? `${option.color} border-current shadow-md transform scale-105`
+                                      : 'bg-gray-50 hover:bg-gray-100 border-gray-200 text-gray-600 hover:border-gray-300'
+                                    }
+                                  `}
+                                >
+                                  <input
+                                    type="radio"
+                                    name={question.id}
+                                    value={option.value}
+                                    checked={responses[question.id] === option.value}
+                                    onChange={(e) => handleResponseChange(question.id, e.target.value)}
+                                    className="sr-only"
+                                  />
+                                  <div className="font-bold text-lg mb-1">{option.short}</div>
+                                  <div className="text-xs leading-tight">{option.label}</div>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* References */}
+        <div className="mt-12 bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
+          <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+            <AlertCircle className="text-indigo-600" size={28} />
+            References
+          </h3>
+          <div className="space-y-4 text-sm text-gray-600">
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <p className="font-medium text-gray-800 mb-2">European Commission, Directorate-General for Education, Youth, Sport and Culture</p>
+              <p>(2022). <em>Ethical guidelines on the use of artificial intelligence (AI) and data in teaching and learning for educators</em>. Publications Office of the European Union.</p>
+              <a href="https://doi.org/10.2766/153756" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-700 underline">
+                https://doi.org/10.2766/153756
+              </a>
+            </div>
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <p className="font-medium text-gray-800 mb-2">Ministero dell'istruzione e del merito</p>
+              <p>(2025). <em>Linee guida per l'introduzione dell'intelligenza artificiale nelle istituzioni scolastiche</em>.</p>
+              <a href="https://www.mim.gov.it/documents/20182/0/MIM_Linee+guida+IA+nella+Scuola_09_08_2025-signed.pdf" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-700 underline break-all">
+                Link to document
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="mt-8 text-center text-sm text-gray-500">
+          <p className="mb-2">
+            <strong>Note:</strong> This analysis tool and its contents are the exclusive property of Rossana Spadaro. 
+            All rights reserved. Personal and professional use of the tool is permitted, 
+            but reproduction, distribution or modification without written authorisation is prohibited.
+          </p>
+          <p>
+            What suggestions do you have for improving the model? I look forward to hearing from you. Please email me at: {' '}
+            <a href="mailto:rossana.spadaro@phd.unict.it" className="text-indigo-600 hover:text-indigo-700">
+              rossana.spadaro@phd.unict.it
+            </a>
+          </p>
+        </div>
+
+        {/* Overall Score at Bottom */}
+        {overallScore !== null && (
+          <div className="mt-8 bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
+            <div className="text-center">
+              <h3 className="text-2xl font-bold text-gray-800 mb-4">Final Overall Score</h3>
+              <div className="bg-gradient-to-r from-indigo-100 to-purple-100 rounded-2xl p-8">
+                <div className="text-5xl font-bold text-indigo-600 mb-4">
+                  {overallScore.toFixed(2)}/5.00
+                </div>
+                <div className={`text-2xl font-bold mb-2 ${getSectionStatus(overallScore).color}`}>
+                  {getSectionStatus(overallScore).text}
+                </div>
+                <div className="text-gray-600 text-lg">
+                  Based on {Object.values(responses).filter(r => r !== undefined && r !== 0).length} evaluated responses
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default EthicalEvaluationTool;
